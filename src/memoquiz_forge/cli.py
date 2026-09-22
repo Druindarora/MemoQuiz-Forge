@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from memoquiz_forge.database import DEFAULT_DATABASE_PATH, initialize_database
+from memoquiz_forge.exporter import QuestionExportError, export_questions
 from memoquiz_forge.importer import QuestionImportError, import_questions
 from memoquiz_forge.questions import (
     ExactDuplicateError,
@@ -66,6 +67,15 @@ def build_parser() -> argparse.ArgumentParser:
     reject_parser.add_argument("id", type=int, help="Question ID.")
     import_parser = subparsers.add_parser("import", help="Import questions from a JSON file.")
     import_parser.add_argument("file", type=Path, help="JSON file to import.")
+    export_parser = subparsers.add_parser("export", help="Export validated questions for MemoQuiz.")
+    export_parser.add_argument("file", type=Path, help="JSON file to create.")
+    export_parser.add_argument("--count", required=True, type=int, help="Maximum number to export.")
+    export_parser.add_argument("--domain")
+    export_parser.add_argument("--concept")
+    export_parser.add_argument(
+        "--level", choices=("basic", "intermediate", "advanced")
+    )
+    export_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
     return parser
 
 
@@ -193,3 +203,22 @@ def main() -> None:
         print(f"- {result.imported} imported")
         print(f"- {result.skipped_duplicates} exact duplicates skipped")
         print(f"- {result.question_conflicts} question conflicts")
+    elif args.command == "export":
+        try:
+            result = export_questions(
+                DEFAULT_DATABASE_PATH,
+                args.file,
+                count=args.count,
+                domain=args.domain,
+                concept=args.concept,
+                level=args.level,
+                force=args.force,
+            )
+        except (QuestionExportError, ValueError, OSError) as error:
+            raise SystemExit(f"Unable to export questions: {error}") from error
+        if result.exported == 0:
+            print("No questions available for export.")
+            return
+        print("Export complete:")
+        print(f"- {result.exported} questions exported")
+        print(f"- file: {result.output_path}")
