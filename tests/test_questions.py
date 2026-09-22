@@ -58,10 +58,16 @@ class AddQuestionTests(unittest.TestCase):
         self.assertEqual(row["level"], "intermediate")
         self.assertEqual(json.loads(row["tags"]), ["database", "performance"])
 
-    def test_fingerprints_are_deterministic_for_normalized_text(self) -> None:
+    def test_question_mark_spacing_and_case_are_normalized(self) -> None:
+        self.assertEqual(
+            question_fingerprint("What is Git?"),
+            question_fingerprint(" what is git ? "),
+        )
+
+    def test_apostrophes_and_accents_are_normalized(self) -> None:
         first_question = "  Qu’est-ce  que  l’été ?\r\n"
-        second_question = "qu'est ce que l ete?"
-        first_answer = "Une saison."
+        second_question = "qu'est-ce que l'ete?"
+        first_answer = "Une saison"
         second_answer = " une   saison "
 
         self.assertEqual(question_fingerprint(first_question), question_fingerprint(second_question))
@@ -70,14 +76,27 @@ class AddQuestionTests(unittest.TestCase):
             content_fingerprint(second_question, second_answer),
         )
 
+    def test_technical_symbols_remain_distinct(self) -> None:
+        self.assertNotEqual(
+            question_fingerprint("What is C?"), question_fingerprint("What is C#?")
+        )
+        self.assertNotEqual(question_fingerprint("="), question_fingerprint("!="))
+        self.assertNotEqual(
+            question_fingerprint("foo.bar"), question_fingerprint("foo bar")
+        )
+        self.assertNotEqual(
+            content_fingerprint("Compare x <= y", "true"),
+            content_fingerprint("Compare x < y", "true"),
+        )
+
     def test_rejects_exact_duplicate(self) -> None:
-        add_question(self.database_path, question="What is Git?", answer="A version control system.")
+        add_question(self.database_path, question="What is Git?", answer="A version control system")
 
         with self.assertRaisesRegex(ExactDuplicateError, "Exact duplicate"):
             add_question(
                 self.database_path,
                 question=" what is git? ",
-                answer="A version-control system!",
+                answer="A version control system",
             )
 
     def test_allows_question_conflict_with_different_answer(self) -> None:

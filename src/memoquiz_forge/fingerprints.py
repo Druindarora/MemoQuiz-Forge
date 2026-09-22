@@ -19,11 +19,11 @@ def normalize_text(text: str) -> str:
         for character in unicodedata.normalize("NFKD", text)
         if not unicodedata.combining(character)
     )
-    text = "".join(
-        " " if unicodedata.category(character).startswith("P") else character
-        for character in text
-    )
-    return re.sub(r"\s+", " ", text.casefold()).strip()
+    text = re.sub(r"\s+", " ", text.casefold()).strip()
+    # A space before the final punctuation of a natural-language question is
+    # typographic noise. Other punctuation is kept because it can be part of
+    # technical identifiers, operators, or syntax.
+    return re.sub(r"\s+([?!])$", r"\1", text)
 
 
 def fingerprint(text: str) -> str:
