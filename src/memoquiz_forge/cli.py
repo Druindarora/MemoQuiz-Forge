@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from memoquiz_forge.database import DEFAULT_DATABASE_PATH, initialize_database
+from memoquiz_forge.importer import ImportError, import_questions
 from memoquiz_forge.questions import (
     ExactDuplicateError,
     QuestionNotFoundError,
@@ -53,6 +55,8 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("id", type=int, help="Question ID.")
     reject_parser = subparsers.add_parser("reject", help="Reject a question.")
     reject_parser.add_argument("id", type=int, help="Question ID.")
+    import_parser = subparsers.add_parser("import", help="Import questions from a JSON file.")
+    import_parser.add_argument("file", type=Path, help="JSON file to import.")
     return parser
 
 
@@ -154,3 +158,12 @@ def main() -> None:
             print(f"Question rejected: #{status_change.id}")
         else:
             print(f"Question #{status_change.id} is already rejected; no changes made.")
+    elif args.command == "import":
+        try:
+            result = import_questions(DEFAULT_DATABASE_PATH, args.file)
+        except ImportError as error:
+            raise SystemExit(f"Unable to import questions: {error}") from error
+        print("Import complete:")
+        print(f"- {result.imported} imported")
+        print(f"- {result.skipped_duplicates} exact duplicates skipped")
+        print(f"- {result.question_conflicts} question conflicts")
