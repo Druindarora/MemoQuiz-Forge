@@ -52,6 +52,23 @@ class StatusChange:
 
 
 @dataclass(frozen=True)
+class IncompleteQuestion:
+    """A draft question that cannot yet be validated."""
+
+    id: int
+    problem: str
+
+
+@dataclass(frozen=True)
+class BulkValidationResult:
+    """Outcome of validating a set of draft questions."""
+
+    validated: int
+    incomplete: list[IncompleteQuestion]
+    selected: int
+
+
+@dataclass(frozen=True)
 class Question:
     """A question stored in the local database."""
 
@@ -278,21 +295,9 @@ def validate_question(database_path: Path, question_id: int) -> StatusChange:
         if existing is None:
             raise QuestionNotFoundError(f"Question not found: #{question_id}")
 
-        missing_fields = [
-            field
-            for field, value in (
-                ("question", existing.question),
-                ("answer", existing.answer),
-                ("domain", existing.domain),
-                ("concept", existing.concept),
-                ("level", existing.level),
-            )
-            if value is None or not value.strip()
-        ]
-        if missing_fields:
-            raise QuestionValidationError(f"missing {', '.join(missing_fields)}.")
-        if existing.level not in ALLOWED_LEVELS:
-            raise QuestionValidationError(f"invalid level: {existing.level!r}.")
+        validation_problem = _validation_problem(existing)
+        if validation_problem is not None:
+            raise QuestionValidationError(validation_problem)
         if existing.status == "validated":
             return StatusChange(id=question_id, changed=False)
 
@@ -306,6 +311,51 @@ def validate_question(database_path: Path, question_id: int) -> StatusChange:
             (question_id,),
         )
     return StatusChange(id=question_id, changed=True)
+
+
+def validate_draft_questions(
+    database_path: Path,
+    *,
+    domain: str | None = None,
+    concept: str | None = None,
+    level: str | None = None,
+) -> BulkValidationResult:
+    """Validate complete draft questions matching optional metadata filters."""
+    filters = ["status = 'draft'"]
+    parameters: list[str] = []
+    for column, value in (("domain", domain), ("concept", concept), ("level", level)):
+        if value is not None:
+            filters.append(f"{column} = ?")
+            parameters.append(value)
+
+    with closing(connect(database_path)) as connection, connection:
+        connection.row_factory = _row_to_question
+        drafts = connection.execute(
+            f"SELECT * FROM questions WHERE {' AND '.join(filters)} ORDER BY id", parameters
+        ).fetchall()
+        connection.row_factory = None
+
+        incomplete: list[IncompleteQuestion] = []
+        validated = 0
+        for draft in drafts:
+            validation_problem = _validation_problem(draft)
+            if validation_problem is not None:
+                incomplete.append(IncompleteQuestion(id=draft.id, problem=validation_problem))
+                continue
+            connection.execute(
+                """
+                UPDATE questions
+                SET status = 'validated',
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                """,
+                (draft.id,),
+            )
+            validated += 1
+
+    return BulkValidationResult(
+        validated=validated, incomplete=incomplete, selected=len(drafts)
+    )
 
 
 def reject_question(database_path: Path, question_id: int) -> StatusChange:
@@ -329,6 +379,26 @@ def reject_question(database_path: Path, question_id: int) -> StatusChange:
             (question_id,),
         )
     return StatusChange(id=question_id, changed=True)
+
+
+def _validation_problem(question: Question) -> str | None:
+    """Return why a question cannot be validated, if applicable."""
+    missing_fields = [
+        field
+        for field, value in (
+            ("question", question.question),
+            ("answer", question.answer),
+            ("domain", question.domain),
+            ("concept", question.concept),
+            ("level", question.level),
+        )
+        if value is None or not value.strip()
+    ]
+    if missing_fields:
+        return f"missing {', '.join(missing_fields)}."
+    if question.level not in ALLOWED_LEVELS:
+        return f"invalid level: {question.level!r}."
+    return None
 
 
 def _row_to_question(cursor: object, row: tuple[object, ...]) -> Question:

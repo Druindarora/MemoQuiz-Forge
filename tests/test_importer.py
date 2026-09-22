@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from memoquiz_forge.database import connect, initialize_database
 from memoquiz_forge import importer
-from memoquiz_forge.importer import ImportError, import_questions
+from memoquiz_forge.importer import QuestionImportError, import_questions
 from memoquiz_forge.questions import add_question, get_question, list_questions
 
 
@@ -83,7 +83,7 @@ class ImportQuestionsTests(unittest.TestCase):
         ]
         for payload in invalid_payloads:
             with self.subTest(payload=payload):
-                with self.assertRaises(ImportError):
+                with self.assertRaises(QuestionImportError):
                     import_questions(self.database_path, self.write_json(payload))
                 self.assertEqual(list_questions(self.database_path), [])
 
@@ -95,16 +95,16 @@ class ImportQuestionsTests(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(ImportError, r'Invalid item #2: "answer"'):
+        with self.assertRaisesRegex(QuestionImportError, r'Invalid item #2: "answer"'):
             import_questions(self.database_path, path)
 
     def test_rejects_invalid_json_and_missing_file(self) -> None:
         invalid_json = self.directory / "invalid.json"
         invalid_json.write_text("{not json", encoding="utf-8")
 
-        with self.assertRaisesRegex(ImportError, "Invalid JSON"):
+        with self.assertRaisesRegex(QuestionImportError, "Invalid JSON"):
             import_questions(self.database_path, invalid_json)
-        with self.assertRaisesRegex(ImportError, "File not found"):
+        with self.assertRaisesRegex(QuestionImportError, "File not found"):
             import_questions(self.database_path, self.directory / "missing.json")
         self.assertEqual(list_questions(self.database_path), [])
 

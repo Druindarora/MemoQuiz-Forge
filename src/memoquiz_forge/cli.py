@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from memoquiz_forge.database import DEFAULT_DATABASE_PATH, initialize_database
-from memoquiz_forge.importer import ImportError, import_questions
+from memoquiz_forge.importer import QuestionImportError, import_questions
 from memoquiz_forge.questions import (
     ExactDuplicateError,
     QuestionNotFoundError,
@@ -17,6 +17,7 @@ from memoquiz_forge.questions import (
     list_questions,
     reject_question,
     validate_question,
+    validate_draft_questions,
 )
 
 
@@ -53,6 +54,14 @@ def build_parser() -> argparse.ArgumentParser:
     show_parser.add_argument("id", type=int, help="Question ID.")
     validate_parser = subparsers.add_parser("validate", help="Validate a complete question.")
     validate_parser.add_argument("id", type=int, help="Question ID.")
+    validate_all_parser = subparsers.add_parser(
+        "validate-all", help="Validate complete draft questions."
+    )
+    validate_all_parser.add_argument("--domain")
+    validate_all_parser.add_argument("--concept")
+    validate_all_parser.add_argument(
+        "--level", choices=("basic", "intermediate", "advanced")
+    )
     reject_parser = subparsers.add_parser("reject", help="Reject a question.")
     reject_parser.add_argument("id", type=int, help="Question ID.")
     import_parser = subparsers.add_parser("import", help="Import questions from a JSON file.")
@@ -158,10 +167,27 @@ def main() -> None:
             print(f"Question rejected: #{status_change.id}")
         else:
             print(f"Question #{status_change.id} is already rejected; no changes made.")
+    elif args.command == "validate-all":
+        result = validate_draft_questions(
+            DEFAULT_DATABASE_PATH,
+            domain=args.domain,
+            concept=args.concept,
+            level=args.level,
+        )
+        if result.selected == 0:
+            print("No draft questions found.")
+            return
+        print("Bulk validation complete:")
+        print(f"- {result.validated} validated")
+        print(f"- {len(result.incomplete)} incomplete skipped")
+        if result.incomplete:
+            print("Incomplete:")
+            for incomplete_question in result.incomplete:
+                print(f"- #{incomplete_question.id}: {incomplete_question.problem}")
     elif args.command == "import":
         try:
             result = import_questions(DEFAULT_DATABASE_PATH, args.file)
-        except ImportError as error:
+        except QuestionImportError as error:
             raise SystemExit(f"Unable to import questions: {error}") from error
         print("Import complete:")
         print(f"- {result.imported} imported")

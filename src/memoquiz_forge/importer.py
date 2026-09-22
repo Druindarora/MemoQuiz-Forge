@@ -26,7 +26,7 @@ FORBIDDEN_FIELDS = {
 }
 
 
-class ImportError(Exception):
+class QuestionImportError(Exception):
     """Raised when an import file cannot be read or validated."""
 
 
@@ -87,14 +87,14 @@ def _read_and_validate(input_path: Path) -> list[ImportItem]:
         with input_path.open(encoding="utf-8") as input_file:
             payload = json.load(input_file)
     except FileNotFoundError as error:
-        raise ImportError(f"File not found: {input_path}") from error
+        raise QuestionImportError(f"File not found: {input_path}") from error
     except OSError as error:
-        raise ImportError(f"Unable to read file: {input_path}") from error
+        raise QuestionImportError(f"Unable to read file: {input_path}") from error
     except json.JSONDecodeError as error:
-        raise ImportError(f"Invalid JSON: {error.msg}") from error
+        raise QuestionImportError(f"Invalid JSON: {error.msg}") from error
 
     if not isinstance(payload, list):
-        raise ImportError("Invalid JSON root: expected an array.")
+        raise QuestionImportError("Invalid JSON root: expected an array.")
     return [_validate_item(item, index) for index, item in enumerate(payload, start=1)]
 
 
@@ -152,7 +152,7 @@ def _optional_string(item: dict[str, object], index: int, field: str) -> str | N
 
 
 def _invalid_item(index: int, message: str) -> None:
-    raise ImportError(f"Invalid item #{index}: {message}")
+    raise QuestionImportError(f"Invalid item #{index}: {message}")
 
 
 def _insert_question(connection: sqlite3.Connection, item: ImportItem) -> None:

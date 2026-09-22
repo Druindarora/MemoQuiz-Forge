@@ -139,3 +139,72 @@ class EditCommandTests(unittest.TestCase):
                         main()
             finally:
                 os.chdir(previous_directory)
+
+
+class BulkValidationCommandTests(unittest.TestCase):
+    def test_validate_all_displays_summary_and_incomplete_questions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = StringIO()
+            previous_directory = Path.cwd()
+            try:
+                os.chdir(temporary_directory)
+                with patch("sys.argv", ["memoquiz-forge", "init"]):
+                    main()
+                with patch(
+                    "sys.argv",
+                    [
+                        "memoquiz-forge",
+                        "add",
+                        "--question",
+                        "Complete question",
+                        "--answer",
+                        "Answer",
+                        "--domain",
+                        "sql",
+                        "--concept",
+                        "basics",
+                        "--level",
+                        "basic",
+                    ],
+                ):
+                    main()
+                with patch(
+                    "sys.argv",
+                    [
+                        "memoquiz-forge",
+                        "add",
+                        "--question",
+                        "Incomplete question",
+                        "--answer",
+                        "Answer",
+                    ],
+                ):
+                    main()
+                with patch("sys.argv", ["memoquiz-forge", "validate-all"]), redirect_stdout(
+                    output
+                ):
+                    main()
+            finally:
+                os.chdir(previous_directory)
+
+            self.assertIn("Bulk validation complete:", output.getvalue())
+            self.assertIn("- 1 validated", output.getvalue())
+            self.assertIn("- 1 incomplete skipped", output.getvalue())
+            self.assertIn("- #2: missing domain, concept, level.", output.getvalue())
+
+    def test_validate_all_reports_when_no_drafts_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = StringIO()
+            previous_directory = Path.cwd()
+            try:
+                os.chdir(temporary_directory)
+                with patch("sys.argv", ["memoquiz-forge", "init"]):
+                    main()
+                with patch("sys.argv", ["memoquiz-forge", "validate-all"]), redirect_stdout(
+                    output
+                ):
+                    main()
+            finally:
+                os.chdir(previous_directory)
+
+            self.assertEqual(output.getvalue(), "No draft questions found.\n")
