@@ -3,6 +3,7 @@
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from memoquiz_forge.database import initialize_database
@@ -23,7 +24,7 @@ class DatabaseInitializationTests(unittest.TestCase):
             database_path = Path(temporary_directory) / "forge.db"
             initialize_database(database_path)
 
-            with sqlite3.connect(database_path) as connection:
+            with closing(sqlite3.connect(database_path)) as connection:
                 columns = {
                     row[1]
                     for row in connection.execute("PRAGMA table_info(questions)")
@@ -72,7 +73,7 @@ class DatabaseInitializationTests(unittest.TestCase):
             initialize_database(database_path)
             initialize_database(database_path)
 
-            with sqlite3.connect(database_path) as connection:
+            with closing(sqlite3.connect(database_path)) as connection:
                 table_count = connection.execute(
                     "SELECT COUNT(*) FROM sqlite_master "
                     "WHERE type = 'table' AND name = 'questions'"
@@ -85,7 +86,7 @@ class DatabaseInitializationTests(unittest.TestCase):
             database_path = Path(temporary_directory) / "forge.db"
             initialize_database(database_path)
 
-            with sqlite3.connect(database_path) as connection:
+            with closing(sqlite3.connect(database_path)) as connection:
                 connection.execute(
                     """
                     INSERT INTO questions (

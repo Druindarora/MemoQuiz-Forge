@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 from memoquiz_forge.database import DEFAULT_DATABASE_PATH, initialize_database
-from memoquiz_forge.questions import ExactDuplicateError, add_question
+from memoquiz_forge.questions import ExactDuplicateError, add_question, get_question, list_questions
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,6 +21,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--level", choices=("basic", "intermediate", "advanced"), help="Question level."
     )
     add_parser.add_argument("--tag", dest="tags", action="append", default=[], help="Tag.")
+    list_parser = subparsers.add_parser("list", help="List questions.")
+    list_parser.add_argument("--status", choices=("draft", "validated", "rejected"))
+    list_parser.add_argument("--domain")
+    list_parser.add_argument("--concept")
+    list_parser.add_argument("--level", choices=("basic", "intermediate", "advanced"))
+    list_parser.add_argument("--unexported", action="store_true")
+    show_parser = subparsers.add_parser("show", help="Show a question in detail.")
+    show_parser.add_argument("id", type=int, help="Question ID.")
     return parser
 
 
@@ -48,3 +56,38 @@ def main() -> None:
         print(f"Question added as draft: #{added_question.id}")
         if added_question.has_question_conflict:
             print("Warning: a question with similar text already exists.")
+    elif args.command == "list":
+        questions = list_questions(
+            DEFAULT_DATABASE_PATH,
+            status=args.status,
+            domain=args.domain,
+            concept=args.concept,
+            level=args.level,
+            unexported=args.unexported,
+        )
+        if not questions:
+            print("No questions found.")
+            return
+        for question in questions:
+            print(
+                f"#{question.id} | {question.question} | "
+                f"domain={question.domain or '-'} | concept={question.concept or '-'} | "
+                f"level={question.level or '-'} | status={question.status} | "
+                f"exported={'yes' if question.exported else 'no'}"
+            )
+    elif args.command == "show":
+        question = get_question(DEFAULT_DATABASE_PATH, args.id)
+        if question is None:
+            raise SystemExit(f"Question not found: #{args.id}")
+        print(f"id: {question.id}")
+        print(f"question: {question.question}")
+        print(f"answer: {question.answer}")
+        print(f"domain: {question.domain or '-'}")
+        print(f"concept: {question.concept or '-'}")
+        print(f"level: {question.level or '-'}")
+        print(f"tags: {', '.join(question.tags) if question.tags else '-'}")
+        print(f"status: {question.status}")
+        print(f"exported: {'yes' if question.exported else 'no'}")
+        print(f"created_at: {question.created_at}")
+        print(f"updated_at: {question.updated_at}")
+        print(f"exported_at: {question.exported_at or '-'}")

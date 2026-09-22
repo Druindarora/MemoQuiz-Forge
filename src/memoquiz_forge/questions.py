@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,24 @@ class AddedQuestion:
 
     id: int
     has_question_conflict: bool
+
+
+@dataclass(frozen=True)
+class Question:
+    """A question stored in the local database."""
+
+    id: int
+    question: str
+    answer: str
+    domain: str | None
+    concept: str | None
+    level: str | None
+    tags: list[str]
+    status: str
+    exported: bool
+    created_at: str
+    updated_at: str
+    exported_at: str | None
 
 
 def add_question(
@@ -47,7 +66,7 @@ def add_question(
     question_hash = question_fingerprint(question)
     content_hash = content_fingerprint(question, answer)
 
-    with connect(database_path) as connection:
+    with closing(connect(database_path)) as connection, connection:
         exact_duplicate = connection.execute(
             "SELECT id FROM questions WHERE content_fingerprint = ? LIMIT 1",
             (content_hash,),
@@ -82,3 +101,64 @@ def add_question(
         )
 
     return AddedQuestion(id=cursor.lastrowid, has_question_conflict=question_conflict)
+
+
+def list_questions(
+    database_path: Path,
+    *,
+    status: str | None = None,
+    domain: str | None = None,
+    concept: str | None = None,
+    level: str | None = None,
+    unexported: bool = False,
+) -> list[Question]:
+    """Return questions matching the provided filters, ordered by ID."""
+    filters: list[str] = []
+    parameters: list[str | int] = []
+    for column, value in (
+        ("status", status),
+        ("domain", domain),
+        ("concept", concept),
+        ("level", level),
+    ):
+        if value is not None:
+            filters.append(f"{column} = ?")
+            parameters.append(value)
+    if unexported:
+        filters.append("exported = 0")
+
+    where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
+    query = f"SELECT * FROM questions{where_clause} ORDER BY id"
+
+    with closing(connect(database_path)) as connection:
+        connection.row_factory = _row_to_question
+        return connection.execute(query, parameters).fetchall()
+
+
+def get_question(database_path: Path, question_id: int) -> Question | None:
+    """Return one question by ID, or None when it does not exist."""
+    with closing(connect(database_path)) as connection:
+        connection.row_factory = _row_to_question
+        return connection.execute(
+            "SELECT * FROM questions WHERE id = ?", (question_id,)
+        ).fetchone()
+
+
+def _row_to_question(cursor: object, row: tuple[object, ...]) -> Question:
+    """Convert a SQLite result row into a Question."""
+    columns = [column[0] for column in cursor.description]  # type: ignore[attr-defined]
+    values = dict(zip(columns, row, strict=True))
+    return Question(
+        id=values["id"],  # type: ignore[arg-type]
+        question=values["question"],  # type: ignore[arg-type]
+        answer=values["answer"],  # type: ignore[arg-type]
+        domain=values["domain"],  # type: ignore[arg-type]
+        concept=values["concept"],  # type: ignore[arg-type]
+        level=values["level"],  # type: ignore[arg-type]
+        tags=json.loads(values["tags"]),  # type: ignore[arg-type]
+        status=values["status"],  # type: ignore[arg-type]
+        exported=bool(values["exported"]),
+        created_at=values["created_at"],  # type: ignore[arg-type]
+        updated_at=values["updated_at"],  # type: ignore[arg-type]
+        exported_at=values["exported_at"],  # type: ignore[arg-type]
+    )

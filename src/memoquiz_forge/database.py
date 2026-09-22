@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 
@@ -49,6 +50,6 @@ def connect(database_path: Path) -> sqlite3.Connection:
 
 def initialize_database(database_path: Path = DEFAULT_DATABASE_PATH) -> Path:
     """Create the database and its schema if they do not already exist."""
-    with connect(database_path) as connection:
+    with closing(connect(database_path)) as connection, connection:
         connection.executescript(SCHEMA)
     return database_path

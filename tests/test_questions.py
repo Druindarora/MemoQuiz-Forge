@@ -4,6 +4,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from memoquiz_forge.database import initialize_database
@@ -21,7 +22,7 @@ class AddQuestionTests(unittest.TestCase):
         self.temporary_directory.cleanup()
 
     def fetch_question(self) -> sqlite3.Row:
-        with sqlite3.connect(self.database_path) as connection:
+        with closing(sqlite3.connect(self.database_path)) as connection:
             connection.row_factory = sqlite3.Row
             return connection.execute("SELECT * FROM questions").fetchone()
 
@@ -107,7 +108,7 @@ class AddQuestionTests(unittest.TestCase):
         )
 
         self.assertTrue(added_question.has_question_conflict)
-        with sqlite3.connect(self.database_path) as connection:
+        with closing(sqlite3.connect(self.database_path)) as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM questions").fetchone()[0], 2)
 
     def test_rejects_invalid_level(self) -> None:
