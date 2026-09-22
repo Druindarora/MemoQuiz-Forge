@@ -120,3 +120,22 @@ class ReadingCommandsTests(unittest.TestCase):
             self.assertIn("answer: A query language.", output.getvalue())
             self.assertIn("domain: sql", output.getvalue())
             self.assertIn("tags: database", output.getvalue())
+
+
+class EditCommandTests(unittest.TestCase):
+    def test_edit_missing_id_exits_with_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            previous_directory = Path.cwd()
+            try:
+                os.chdir(temporary_directory)
+                with patch("sys.argv", ["memoquiz-forge", "init"]):
+                    main()
+                with patch(
+                    "sys.argv", ["memoquiz-forge", "edit", "42", "--domain", "sql"]
+                ):
+                    with self.assertRaisesRegex(
+                        SystemExit, "Unable to edit question: Question not found: #42"
+                    ):
+                        main()
+            finally:
+                os.chdir(previous_directory)

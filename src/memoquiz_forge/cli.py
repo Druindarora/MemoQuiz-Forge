@@ -5,7 +5,14 @@ from __future__ import annotations
 import argparse
 
 from memoquiz_forge.database import DEFAULT_DATABASE_PATH, initialize_database
-from memoquiz_forge.questions import ExactDuplicateError, add_question, get_question, list_questions
+from memoquiz_forge.questions import (
+    ExactDuplicateError,
+    QuestionNotFoundError,
+    add_question,
+    edit_question,
+    get_question,
+    list_questions,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,6 +28,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--level", choices=("basic", "intermediate", "advanced"), help="Question level."
     )
     add_parser.add_argument("--tag", dest="tags", action="append", default=[], help="Tag.")
+    edit_parser = subparsers.add_parser("edit", help="Edit an existing question.")
+    edit_parser.add_argument("id", type=int, help="Question ID.")
+    edit_parser.add_argument("--question", help="Question text.")
+    edit_parser.add_argument("--answer", help="Answer text.")
+    edit_parser.add_argument("--domain", help="Technical domain.")
+    edit_parser.add_argument("--concept", help="Specific concept.")
+    edit_parser.add_argument(
+        "--level", choices=("basic", "intermediate", "advanced"), help="Question level."
+    )
+    edit_parser.add_argument("--tag", dest="tags", action="append", help="Replacement tag.")
     list_parser = subparsers.add_parser("list", help="List questions.")
     list_parser.add_argument("--status", choices=("draft", "validated", "rejected"))
     list_parser.add_argument("--domain")
@@ -75,6 +92,27 @@ def main() -> None:
                 f"level={question.level or '-'} | status={question.status} | "
                 f"exported={'yes' if question.exported else 'no'}"
             )
+    elif args.command == "edit":
+        try:
+            edited_question = edit_question(
+                DEFAULT_DATABASE_PATH,
+                args.id,
+                question=args.question,
+                answer=args.answer,
+                domain=args.domain,
+                concept=args.concept,
+                level=args.level,
+                tags=args.tags,
+            )
+        except (ExactDuplicateError, QuestionNotFoundError, ValueError) as error:
+            raise SystemExit(f"Unable to edit question: {error}") from error
+
+        if not edited_question.modified:
+            print(f"No changes made to question #{edited_question.id}.")
+        else:
+            print(f"Question updated: #{edited_question.id}")
+        if edited_question.has_question_conflict:
+            print("Warning: a question with similar text already exists.")
     elif args.command == "show":
         question = get_question(DEFAULT_DATABASE_PATH, args.id)
         if question is None:
