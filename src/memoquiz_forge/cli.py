@@ -8,10 +8,13 @@ from memoquiz_forge.database import DEFAULT_DATABASE_PATH, initialize_database
 from memoquiz_forge.questions import (
     ExactDuplicateError,
     QuestionNotFoundError,
+    QuestionValidationError,
     add_question,
     edit_question,
     get_question,
     list_questions,
+    reject_question,
+    validate_question,
 )
 
 
@@ -46,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--unexported", action="store_true")
     show_parser = subparsers.add_parser("show", help="Show a question in detail.")
     show_parser.add_argument("id", type=int, help="Question ID.")
+    validate_parser = subparsers.add_parser("validate", help="Validate a complete question.")
+    validate_parser.add_argument("id", type=int, help="Question ID.")
+    reject_parser = subparsers.add_parser("reject", help="Reject a question.")
+    reject_parser.add_argument("id", type=int, help="Question ID.")
     return parser
 
 
@@ -129,3 +136,21 @@ def main() -> None:
         print(f"created_at: {question.created_at}")
         print(f"updated_at: {question.updated_at}")
         print(f"exported_at: {question.exported_at or '-'}")
+    elif args.command == "validate":
+        try:
+            status_change = validate_question(DEFAULT_DATABASE_PATH, args.id)
+        except (QuestionNotFoundError, QuestionValidationError) as error:
+            raise SystemExit(f"Unable to validate question #{args.id}: {error}") from error
+        if status_change.changed:
+            print(f"Question validated: #{status_change.id}")
+        else:
+            print(f"Question #{status_change.id} is already validated; no changes made.")
+    elif args.command == "reject":
+        try:
+            status_change = reject_question(DEFAULT_DATABASE_PATH, args.id)
+        except QuestionNotFoundError as error:
+            raise SystemExit(f"Unable to reject question #{args.id}: {error}") from error
+        if status_change.changed:
+            print(f"Question rejected: #{status_change.id}")
+        else:
+            print(f"Question #{status_change.id} is already rejected; no changes made.")

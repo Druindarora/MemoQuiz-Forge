@@ -39,6 +39,18 @@ class QuestionNotFoundError(Exception):
     """Raised when an operation targets an unknown question ID."""
 
 
+class QuestionValidationError(Exception):
+    """Raised when a question cannot be moved to validated."""
+
+
+@dataclass(frozen=True)
+class StatusChange:
+    """Outcome of changing a question status."""
+
+    id: int
+    changed: bool
+
+
 @dataclass(frozen=True)
 class Question:
     """A question stored in the local database."""
@@ -253,6 +265,70 @@ def edit_question(
     return EditedQuestion(
         id=question_id, has_question_conflict=question_conflict, modified=True
     )
+
+
+def validate_question(database_path: Path, question_id: int) -> StatusChange:
+    """Mark a complete question as validated."""
+    with closing(connect(database_path)) as connection, connection:
+        connection.row_factory = _row_to_question
+        existing = connection.execute(
+            "SELECT * FROM questions WHERE id = ?", (question_id,)
+        ).fetchone()
+        connection.row_factory = None
+        if existing is None:
+            raise QuestionNotFoundError(f"Question not found: #{question_id}")
+
+        missing_fields = [
+            field
+            for field, value in (
+                ("question", existing.question),
+                ("answer", existing.answer),
+                ("domain", existing.domain),
+                ("concept", existing.concept),
+                ("level", existing.level),
+            )
+            if value is None or not value.strip()
+        ]
+        if missing_fields:
+            raise QuestionValidationError(f"missing {', '.join(missing_fields)}.")
+        if existing.level not in ALLOWED_LEVELS:
+            raise QuestionValidationError(f"invalid level: {existing.level!r}.")
+        if existing.status == "validated":
+            return StatusChange(id=question_id, changed=False)
+
+        connection.execute(
+            """
+            UPDATE questions
+            SET status = 'validated',
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+            """,
+            (question_id,),
+        )
+    return StatusChange(id=question_id, changed=True)
+
+
+def reject_question(database_path: Path, question_id: int) -> StatusChange:
+    """Mark a question as rejected without changing its content."""
+    with closing(connect(database_path)) as connection, connection:
+        existing = connection.execute(
+            "SELECT status FROM questions WHERE id = ?", (question_id,)
+        ).fetchone()
+        if existing is None:
+            raise QuestionNotFoundError(f"Question not found: #{question_id}")
+        if existing[0] == "rejected":
+            return StatusChange(id=question_id, changed=False)
+
+        connection.execute(
+            """
+            UPDATE questions
+            SET status = 'rejected',
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+            """,
+            (question_id,),
+        )
+    return StatusChange(id=question_id, changed=True)
 
 
 def _row_to_question(cursor: object, row: tuple[object, ...]) -> Question:
