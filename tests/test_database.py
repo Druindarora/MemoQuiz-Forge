@@ -79,3 +79,37 @@ class DatabaseInitializationTests(unittest.TestCase):
                 ).fetchone()[0]
 
             self.assertEqual(table_count, 1)
+
+    def test_draft_metadata_can_be_null_but_level_values_are_constrained(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "forge.db"
+            initialize_database(database_path)
+
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    """
+                    INSERT INTO questions (
+                        question, answer, domain, concept, level,
+                        question_fingerprint, content_fingerprint
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    ("Question", "Answer", None, None, None, "question", "content"),
+                )
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(
+                        """
+                        INSERT INTO questions (
+                            question, answer, domain, concept, level,
+                            question_fingerprint, content_fingerprint
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            "Another question",
+                            "Another answer",
+                            None,
+                            None,
+                            "expert",
+                            "another-question",
+                            "another-content",
+                        ),
+                    )

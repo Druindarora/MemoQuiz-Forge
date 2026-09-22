@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS questions (
     id INTEGER PRIMARY KEY,
     question TEXT NOT NULL,
     answer TEXT NOT NULL,
-    domain TEXT NOT NULL,
-    concept TEXT NOT NULL,
-    level TEXT NOT NULL CHECK (level IN ('basic', 'intermediate', 'advanced')),
+    domain TEXT,
+    concept TEXT,
+    level TEXT CHECK (level IN ('basic', 'intermediate', 'advanced')),
     tags TEXT NOT NULL DEFAULT '[]',
     status TEXT NOT NULL DEFAULT 'draft'
         CHECK (status IN ('draft', 'validated', 'rejected')),
