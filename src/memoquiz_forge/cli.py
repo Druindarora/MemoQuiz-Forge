@@ -23,59 +23,66 @@ from memoquiz_forge.questions import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="memoquiz-forge")
+    parser = argparse.ArgumentParser(
+        prog="memoquiz-forge",
+        description="Outil local de préparation et d'export de questions pour MemoQuiz.",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("init", help="Create the local SQLite database.")
-    add_parser = subparsers.add_parser("add", help="Add a draft question.")
-    add_parser.add_argument("--question", required=True, help="Question text.")
-    add_parser.add_argument("--answer", required=True, help="Answer text.")
-    add_parser.add_argument("--domain", help="Technical domain.")
-    add_parser.add_argument("--concept", help="Specific concept.")
+    subparsers.add_parser("init", help="Crée la base SQLite locale.")
+    add_parser = subparsers.add_parser("add", help="Ajoute une question en brouillon.")
+    add_parser.add_argument("--question", required=True, help="Texte de la question.")
+    add_parser.add_argument("--answer", required=True, help="Texte de la réponse.")
+    add_parser.add_argument("--domain", help="Domaine technique, par exemple angular ou sql.")
+    add_parser.add_argument("--concept", help="Concept précis, par exemple indexes.")
     add_parser.add_argument(
-        "--level", choices=("basic", "intermediate", "advanced"), help="Question level."
+        "--level", choices=("basic", "intermediate", "advanced"), help="Niveau de difficulté."
     )
-    add_parser.add_argument("--tag", dest="tags", action="append", default=[], help="Tag.")
-    edit_parser = subparsers.add_parser("edit", help="Edit an existing question.")
-    edit_parser.add_argument("id", type=int, help="Question ID.")
-    edit_parser.add_argument("--question", help="Question text.")
-    edit_parser.add_argument("--answer", help="Answer text.")
-    edit_parser.add_argument("--domain", help="Technical domain.")
-    edit_parser.add_argument("--concept", help="Specific concept.")
+    add_parser.add_argument("--tag", dest="tags", action="append", default=[], help="Tag, répétable.")
+    edit_parser = subparsers.add_parser("edit", help="Modifie une question existante.")
+    edit_parser.add_argument("id", type=int, help="Identifiant numérique de la question.")
+    edit_parser.add_argument("--question", help="Nouveau texte de la question.")
+    edit_parser.add_argument("--answer", help="Nouveau texte de la réponse.")
+    edit_parser.add_argument("--domain", help="Nouveau domaine technique.")
+    edit_parser.add_argument("--concept", help="Nouveau concept précis.")
     edit_parser.add_argument(
-        "--level", choices=("basic", "intermediate", "advanced"), help="Question level."
+        "--level", choices=("basic", "intermediate", "advanced"), help="Nouveau niveau de difficulté."
     )
-    edit_parser.add_argument("--tag", dest="tags", action="append", help="Replacement tag.")
-    list_parser = subparsers.add_parser("list", help="List questions.")
-    list_parser.add_argument("--status", choices=("draft", "validated", "rejected"))
-    list_parser.add_argument("--domain")
-    list_parser.add_argument("--concept")
-    list_parser.add_argument("--level", choices=("basic", "intermediate", "advanced"))
-    list_parser.add_argument("--unexported", action="store_true")
-    show_parser = subparsers.add_parser("show", help="Show a question in detail.")
-    show_parser.add_argument("id", type=int, help="Question ID.")
-    validate_parser = subparsers.add_parser("validate", help="Validate a complete question.")
-    validate_parser.add_argument("id", type=int, help="Question ID.")
+    edit_parser.add_argument(
+        "--tag", dest="tags", action="append", help="Tag de remplacement, répétable."
+    )
+    list_parser = subparsers.add_parser("list", help="Affiche une liste concise des questions.")
+    list_parser.add_argument("--status", choices=("draft", "validated", "rejected"), help="Statut à afficher.")
+    list_parser.add_argument("--domain", help="Domaine à afficher.")
+    list_parser.add_argument("--concept", help="Concept à afficher.")
+    list_parser.add_argument("--level", choices=("basic", "intermediate", "advanced"), help="Niveau à afficher.")
+    list_parser.add_argument("--unexported", action="store_true", help="Uniquement les questions jamais exportées.")
+    show_parser = subparsers.add_parser("show", help="Affiche le détail d'une question.")
+    show_parser.add_argument("id", type=int, help="Identifiant numérique de la question.")
+    validate_parser = subparsers.add_parser("validate", help="Valide une question complète.")
+    validate_parser.add_argument("id", type=int, help="Identifiant numérique de la question.")
     validate_all_parser = subparsers.add_parser(
-        "validate-all", help="Validate complete draft questions."
+        "validate-all", help="Valide les brouillons complets."
     )
-    validate_all_parser.add_argument("--domain")
-    validate_all_parser.add_argument("--concept")
+    validate_all_parser.add_argument("--domain", help="Limiter au domaine indiqué.")
+    validate_all_parser.add_argument("--concept", help="Limiter au concept indiqué.")
     validate_all_parser.add_argument(
-        "--level", choices=("basic", "intermediate", "advanced")
+        "--level", choices=("basic", "intermediate", "advanced"), help="Limiter au niveau indiqué."
     )
-    reject_parser = subparsers.add_parser("reject", help="Reject a question.")
-    reject_parser.add_argument("id", type=int, help="Question ID.")
-    import_parser = subparsers.add_parser("import", help="Import questions from a JSON file.")
-    import_parser.add_argument("file", type=Path, help="JSON file to import.")
-    export_parser = subparsers.add_parser("export", help="Export validated questions for MemoQuiz.")
-    export_parser.add_argument("file", type=Path, help="JSON file to create.")
-    export_parser.add_argument("--count", required=True, type=int, help="Maximum number to export.")
-    export_parser.add_argument("--domain")
-    export_parser.add_argument("--concept")
+    reject_parser = subparsers.add_parser("reject", help="Rejette une question sans la supprimer.")
+    reject_parser.add_argument("id", type=int, help="Identifiant numérique de la question.")
+    import_parser = subparsers.add_parser("import", help="Importe des questions depuis un fichier JSON.")
+    import_parser.add_argument("file", type=Path, help="Chemin du fichier JSON à importer.")
+    export_parser = subparsers.add_parser("export", help="Exporte des questions validées vers MemoQuiz.")
+    export_parser.add_argument("file", type=Path, help="Chemin du fichier JSON à créer.")
     export_parser.add_argument(
-        "--level", choices=("basic", "intermediate", "advanced")
+        "--count", required=True, type=int, help="Nombre maximal à exporter (entier strictement positif)."
     )
-    export_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    export_parser.add_argument("--domain", help="Limiter au domaine indiqué.")
+    export_parser.add_argument("--concept", help="Limiter au concept indiqué.")
+    export_parser.add_argument(
+        "--level", choices=("basic", "intermediate", "advanced"), help="Limiter au niveau indiqué."
+    )
+    export_parser.add_argument("--force", action="store_true", help="Autorise l'écrasement d'un fichier existant.")
     return parser
 
 
