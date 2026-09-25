@@ -61,8 +61,10 @@ Chaque objet doit contenir exactement ces champs :
 }
 ```
 
-- Utilise le domaine et le concept demandés. Quand aucun concept n'est précisé, choisis un concept court et descriptif cohérent avec la série.
-- Utilise des valeurs stables et concises pour `domain`, `concept` et les tags, de préférence en minuscules avec des tirets lorsque plusieurs mots sont nécessaires.
+- Utilise le domaine et le concept demandés. Quand aucun concept n'est précisé, attribue à chaque question le concept principal qu'elle évalue, et non un concept unique pour toute la série.
+- Le `concept` désigne un sujet précis, pas une catégorie fourre-tout ni le domaine lui-même. Choisis-le d'après le mécanisme, l'API ou le comportement réellement évalué par la question, afin que les filtres et statistiques par concept restent pertinents.
+- Réutilise le même identifiant pour des questions qui évaluent réellement le même concept. Utilise des valeurs stables et concises pour `domain`, `concept` et les tags, de préférence en minuscules avec des tirets lorsque plusieurs mots sont nécessaires.
+- Pour Angular, distingue par exemple `component-communication`, `templates-data-binding`, `rxjs-observables`, `http-client`, `reactive-forms`, `template-driven-forms`, `routing` et `http-interceptors` selon le contenu de la question ; ne les regroupe pas sous `architecture-composants`.
 - `tags` doit toujours être un tableau de chaînes, éventuellement vide.
 - N'inclus jamais `id`, `status`, `exported`, des dates ou des fingerprints : Forge les gère lui-même. L'import direct après confirmation crée des entrées `validated`, toujours non exportées.
 
