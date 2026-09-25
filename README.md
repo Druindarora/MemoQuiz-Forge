@@ -159,13 +159,21 @@ Ajoutez `--validated` pour créer directement des questions validées. Cette opt
 memoquiz-forge import --stdin --validated
 ```
 
-### Importer une série générée après relecture
+### Traiter une série générée
 
-L'agent OpenCode `technical-question-generator` affiche une série JSON, puis attend votre confirmation explicite. Répondez `importer ces questions` uniquement après avoir terminé votre relecture.
+L'agent OpenCode `technical-question-generator` affiche une série JSON, puis attend votre choix explicite. Vous pouvez demander des corrections, répondre `importer ces questions` après votre relecture, ou répondre `créer le fichier de relecture`.
 
 L'agent transmet alors le JSON directement à `memoquiz-forge import --stdin --validated` : aucun fichier JSON n'est créé. OpenCode demande une dernière autorisation d'exécution avant l'écriture en base. Les questions sont contrôlées transactionnellement, dédoublonnées, créées avec le statut `validated` et restent non exportées.
 
-Si vous demandez une correction ou n'approuvez pas la série, aucune écriture n'est effectuée. Une série corrigée doit être approuvée à nouveau.
+Si vous demandez le fichier de relecture, l'agent crée `questions-a-revoir.json` à la racine du projet avec le format enrichi ci-dessous. Le fichier ne peut pas écraser une série existante et il est ignoré par Git. Modifiez-le, puis importez-le :
+
+```bash
+memoquiz-forge import questions-a-revoir.json
+```
+
+Cet import crée des questions `draft`. Validez-les avec `validate` ou `validate-all` avant leur export vers MemoQuiz.
+
+Si vous demandez une correction, aucune écriture n'est effectuée. Une série corrigée doit être approuvée à nouveau.
 
 Le fichier doit être un tableau JSON. Le format minimal compatible avec MemoQuiz est :
 
