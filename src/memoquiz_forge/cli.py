@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from memoquiz_forge.database import DEFAULT_DATABASE_PATH, initialize_database
 from memoquiz_forge.exporter import QuestionExportError, export_questions
-from memoquiz_forge.importer import QuestionImportError, import_questions
+from memoquiz_forge.importer import (
+    QuestionImportError,
+    import_questions,
+    import_questions_from_json,
+)
 from memoquiz_forge.questions import (
     ExactDuplicateError,
     QuestionNotFoundError,
@@ -71,7 +76,15 @@ def build_parser() -> argparse.ArgumentParser:
     reject_parser = subparsers.add_parser("reject", help="Rejette une question sans la supprimer.")
     reject_parser.add_argument("id", type=int, help="Identifiant numérique de la question.")
     import_parser = subparsers.add_parser("import", help="Importe des questions depuis un fichier JSON.")
-    import_parser.add_argument("file", type=Path, help="Chemin du fichier JSON à importer.")
+    import_parser.add_argument("file", type=Path, nargs="?", help="Chemin du fichier JSON à importer.")
+    import_parser.add_argument(
+        "--stdin", action="store_true", help="Lit le tableau JSON depuis l'entrée standard."
+    )
+    import_parser.add_argument(
+        "--validated",
+        action="store_true",
+        help="Importe comme validées les questions complètes lues depuis l'entrée standard.",
+    )
     export_parser = subparsers.add_parser("export", help="Exporte des questions validées vers MemoQuiz.")
     export_parser.add_argument("file", type=Path, help="Chemin du fichier JSON à créer.")
     export_parser.add_argument(
@@ -202,8 +215,21 @@ def main() -> None:
             for incomplete_question in result.incomplete:
                 print(f"- #{incomplete_question.id}: {incomplete_question.problem}")
     elif args.command == "import":
+        if args.file is None and not args.stdin:
+            raise SystemExit("Unable to import questions: provide a JSON file or --stdin.")
+        if args.file is not None and args.stdin:
+            raise SystemExit("Unable to import questions: use either a JSON file or --stdin.")
+        if args.validated and not args.stdin:
+            raise SystemExit("Unable to import questions: --validated requires --stdin.")
         try:
-            result = import_questions(DEFAULT_DATABASE_PATH, args.file)
+            if args.stdin:
+                result = import_questions_from_json(
+                    DEFAULT_DATABASE_PATH,
+                    sys.stdin.read(),
+                    status="validated" if args.validated else "draft",
+                )
+            else:
+                result = import_questions(DEFAULT_DATABASE_PATH, args.file)
         except QuestionImportError as error:
             raise SystemExit(f"Unable to import questions: {error}") from error
         print("Import complete:")

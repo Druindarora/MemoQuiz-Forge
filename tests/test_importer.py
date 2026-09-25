@@ -9,7 +9,11 @@ from unittest.mock import patch
 
 from memoquiz_forge.database import connect, initialize_database
 from memoquiz_forge import importer
-from memoquiz_forge.importer import QuestionImportError, import_questions
+from memoquiz_forge.importer import (
+    QuestionImportError,
+    import_questions,
+    import_questions_from_json,
+)
 from memoquiz_forge.questions import add_question, get_question, list_questions
 
 
@@ -66,6 +70,44 @@ class ImportQuestionsTests(unittest.TestCase):
         self.assertEqual(first_question.concept, "component-communication")
         self.assertEqual(first_question.level, "basic")
         self.assertEqual(first_question.tags, ["input", "components"])
+
+    def test_imports_json_payload_as_validated_questions(self) -> None:
+        result = import_questions_from_json(
+            self.database_path,
+            json.dumps(
+                [
+                    {
+                        "question": "What does an index accelerate?",
+                        "answer": "Queries that can use its indexed columns.",
+                        "domain": "sql",
+                        "concept": "indexes",
+                        "level": "intermediate",
+                        "tags": ["performance"],
+                    }
+                ]
+            ),
+            status="validated",
+        )
+
+        question = get_question(self.database_path, 1)
+        assert question is not None
+        self.assertEqual(result.imported, 1)
+        self.assertEqual(question.status, "validated")
+        self.assertFalse(question.exported)
+
+    def test_rejects_incomplete_validated_json_payload_without_writing(self) -> None:
+        with self.assertRaisesRegex(
+            QuestionImportError, "cannot import as validated: missing concept, level"
+        ):
+            import_questions_from_json(
+                self.database_path,
+                json.dumps(
+                    [{"question": "What is SQL?", "answer": "A query language.", "domain": "sql"}]
+                ),
+                status="validated",
+            )
+
+        self.assertEqual(list_questions(self.database_path), [])
 
     def test_rejects_invalid_file_structure_without_writing(self) -> None:
         invalid_payloads = [
@@ -153,7 +195,7 @@ class ImportQuestionsTests(unittest.TestCase):
         original_insert_question = importer._insert_question
         calls = 0
 
-        def fail_on_second_insert(connection: object, item: object) -> None:
+        def fail_on_second_insert(connection: object, item: object, status: str) -> None:
             nonlocal calls
             calls += 1
             if calls == 2:

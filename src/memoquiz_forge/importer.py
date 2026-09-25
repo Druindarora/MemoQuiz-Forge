@@ -14,6 +14,7 @@ from memoquiz_forge.questions import ALLOWED_LEVELS
 
 
 ALLOWED_FIELDS = {"question", "answer", "domain", "concept", "level", "tags"}
+ALLOWED_IMPORT_STATUSES = {"draft", "validated"}
 FORBIDDEN_FIELDS = {
     "id",
     "status",
@@ -27,7 +28,7 @@ FORBIDDEN_FIELDS = {
 
 
 class QuestionImportError(Exception):
-    """Raised when an import file cannot be read or validated."""
+    """Raised when an import source cannot be read or validated."""
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,36 @@ class ImportResult:
 def import_questions(database_path: Path, input_path: Path) -> ImportResult:
     """Validate and import a JSON batch in one database transaction."""
     items = _read_and_validate(input_path)
+    return _import_items(database_path, items, status="draft")
+
+
+def import_questions_from_json(
+    database_path: Path, payload_text: str, *, status: str = "draft"
+) -> ImportResult:
+    """Validate and import a JSON payload without creating an input file."""
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError as error:
+        raise QuestionImportError(f"Invalid JSON: {error.msg}") from error
+
+    return import_questions_payload(database_path, payload, status=status)
+
+
+def import_questions_payload(
+    database_path: Path, payload: object, *, status: str = "draft"
+) -> ImportResult:
+    """Validate and import an already decoded JSON payload."""
+    items = _validate_payload(payload)
+    return _import_items(database_path, items, status=status)
+
+
+def _import_items(
+    database_path: Path, items: list[ImportItem], *, status: str
+) -> ImportResult:
+    if status not in ALLOWED_IMPORT_STATUSES:
+        raise ValueError(f"Invalid import status: {status!r}.")
+    if status == "validated":
+        _validate_items_for_validated_import(items)
 
     imported = 0
     skipped_duplicates = 0
@@ -74,7 +105,7 @@ def import_questions(database_path: Path, input_path: Path) -> ImportResult:
             if item.question_fingerprint in question_fingerprints:
                 question_conflicts += 1
 
-            _insert_question(connection, item)
+            _insert_question(connection, item, status)
             imported += 1
             content_fingerprints.add(item.content_fingerprint)
             question_fingerprints.add(item.question_fingerprint)
@@ -93,6 +124,10 @@ def _read_and_validate(input_path: Path) -> list[ImportItem]:
     except json.JSONDecodeError as error:
         raise QuestionImportError(f"Invalid JSON: {error.msg}") from error
 
+    return _validate_payload(payload)
+
+
+def _validate_payload(payload: object) -> list[ImportItem]:
     if not isinstance(payload, list):
         raise QuestionImportError("Invalid JSON root: expected an array.")
     return [_validate_item(item, index) for index, item in enumerate(payload, start=1)]
@@ -155,14 +190,35 @@ def _invalid_item(index: int, message: str) -> None:
     raise QuestionImportError(f"Invalid item #{index}: {message}")
 
 
-def _insert_question(connection: sqlite3.Connection, item: ImportItem) -> None:
-    """Insert a previously validated item using the database defaults."""
+def _validate_items_for_validated_import(items: list[ImportItem]) -> None:
+    """Ensure an approved import can enter the validated workflow state."""
+    for index, item in enumerate(items, start=1):
+        missing_fields = [
+            field
+            for field, value in (
+                ("domain", item.domain),
+                ("concept", item.concept),
+                ("level", item.level),
+            )
+            if value is None or not value.strip()
+        ]
+        if missing_fields:
+            _invalid_item(
+                index,
+                f"cannot import as validated: missing {', '.join(missing_fields)}.",
+            )
+
+
+def _insert_question(
+    connection: sqlite3.Connection, item: ImportItem, status: str = "draft"
+) -> None:
+    """Insert a previously validated item with the requested workflow status."""
     connection.execute(
         """
         INSERT INTO questions (
-            question, answer, domain, concept, level, tags,
+            question, answer, domain, concept, level, tags, status,
             question_fingerprint, content_fingerprint
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             item.question,
@@ -171,6 +227,7 @@ def _insert_question(connection: sqlite3.Connection, item: ImportItem) -> None:
             item.concept,
             item.level,
             json.dumps(item.tags, ensure_ascii=False),
+            status,
             item.question_fingerprint,
             item.content_fingerprint,
         ),

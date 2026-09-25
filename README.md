@@ -47,7 +47,7 @@ memoquiz-forge export --help
 
 ## Cycle d'utilisation courant
 
-1. Ajoutez des questions une par une ou importez un fichier JSON.
+1. Ajoutez des questions une par une, importez un fichier JSON, ou faites générer une série par `technical-question-generator`.
 2. Complétez leurs métadonnées avec `edit` si besoin.
 3. Validez les questions complètes.
 4. Exportez les questions validées dans un fichier JSON à importer dans MemoQuiz.
@@ -147,6 +147,26 @@ Filtres combinables : `--domain TEXTE`, `--concept TEXTE` et `--level basic|inte
 memoquiz-forge import questions.json
 ```
 
+L'import peut aussi lire le tableau JSON depuis l'entrée standard, sans fichier d'entrée :
+
+```bash
+memoquiz-forge import --stdin
+```
+
+Ajoutez `--validated` pour créer directement des questions validées. Cette option fonctionne uniquement avec `--stdin` et exige `domain`, `concept` et `level` non vides sur toutes les questions :
+
+```bash
+memoquiz-forge import --stdin --validated
+```
+
+### Importer une série générée après relecture
+
+L'agent OpenCode `technical-question-generator` affiche une série JSON, puis attend votre confirmation explicite. Répondez `importer ces questions` uniquement après avoir terminé votre relecture.
+
+L'agent transmet alors le JSON directement à `memoquiz-forge import --stdin --validated` : aucun fichier JSON n'est créé. OpenCode demande une dernière autorisation d'exécution avant l'écriture en base. Les questions sont contrôlées transactionnellement, dédoublonnées, créées avec le statut `validated` et restent non exportées.
+
+Si vous demandez une correction ou n'approuvez pas la série, aucune écriture n'est effectuée. Une série corrigée doit être approuvée à nouveau.
+
 Le fichier doit être un tableau JSON. Le format minimal compatible avec MemoQuiz est :
 
 ```json
@@ -181,7 +201,7 @@ Règles du fichier :
 - `tags`, s'il est présent, doit être un tableau de chaînes.
 - N'incluez pas `id`, `status`, `exported`, les dates ou les fingerprints : Forge les gère lui-même et refusera le fichier.
 
-L'import valide tout le fichier avant toute écriture. Toutes les entrées importées deviennent des brouillons non exportés. Les doublons exacts sont ignorés et comptés dans le résumé ; les conflits de question avec une réponse différente sont importés et signalés.
+L'import valide toute la source avant toute écriture. L'import depuis un fichier, ainsi que `--stdin` sans `--validated`, crée des brouillons non exportés. Avec `--stdin --validated`, les entrées complètes sont directement validées. Les doublons exacts sont ignorés et comptés dans le résumé ; les conflits de question avec une réponse différente sont importés et signalés.
 
 ### Exporter vers MemoQuiz
 
